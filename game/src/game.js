@@ -238,15 +238,16 @@ export function createGame(scene, camera, random, shotMode) {
       if (player.health <= 0) {
         player.alive = false;
         G.deaths += 1;
-        hud.banner('KAMU GUGUR', 'Tim Kura masih berjuang — tonton sampai ronde berakhir.', 3);
-        // Dying mid-plant used to freeze the plant bar on screen: stepPlanting
-        // only runs while the player is alive, so the progress never reset and
-        // the bot plant/defuse bar (gated on plantProgress === 0) never showed
-        // for the rest of the round. Clear it here, at the moment of death.
+        // Dying mid-plant used to freeze the plant bar on screen: planting
+        // only advances while the player is alive, so the progress never
+        // reset and the bot plant/defuse bar (which waits for
+        // plantProgress === 0) never showed for the rest of the round.
+        // Clear it here, at the moment of death.
         if (G.plantProgress > 0) {
           G.plantProgress = 0;
           hud.hidePlant();
         }
+        hud.banner('KAMU GUGUR', 'Tim Kura masih berjuang — tonton sampai ronde berakhir.', 3);
         if (G.carrier === playerAgent) passCarrier();
         checkRoundEnd();
       }
@@ -749,13 +750,13 @@ export function createGame(scene, camera, random, shotMode) {
     proxyGroup.visible = player.alive;
     const shakeAmp = G.shake * 0.03;
     G.shake = Math.max(0, G.shake - dt * 1.4);
-    camera.position.set(player.x, player.y + player.eye, player.z);
-    // Camera shake only draws from the round's seeded stream while the screen
-    // is actually shaking: before, two numbers were drawn every frame even
-    // with shake at zero, so the stream's state after N steps depended on how
-    // many frames had rendered instead of on the simulation alone.
+    // Camera shake only draws from the round's seeded stream while the
+    // screen is actually shaking: drawing two numbers every frame even
+    // with shake at zero made the stream's state after N steps depend on
+    // how many frames had rendered instead of on the simulation alone.
     const shakeX = G.shake > 0 ? (random() * 2 - 1) * shakeAmp : 0;
     const shakeY = G.shake > 0 ? (random() * 2 - 1) * shakeAmp : 0;
+    camera.position.set(player.x, player.y + player.eye, player.z);
     camera.rotation.set(
       player.pitch + player.recoilPitch + shakeX,
       player.yaw + player.recoilYaw + shakeY,

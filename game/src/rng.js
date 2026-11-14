@@ -1,13 +1,14 @@
-// Deterministic randomness for KURA OPS.
+// Seeded randomness for KURA OPS.
 //
-// The whole match runs off one mulberry32 stream per round: the seed fixes
-// the round, so a ?shot=...&seed=N capture and a fresh round with the same
-// seed play out identically. Rendering never touches this stream — only the
-// simulation draws from it — which is what keeps replays repeatable.
+// A match is driven by one mulberry32 stream per round. Fix the seed and
+// the round plays out the same way every time — that is what makes the
+// ?shot= captures repeatable and the dossier deterministic. Only the
+// simulation draws from the stream; rendering never does, so a replay stays
+// a replay no matter how the frame rate wobbles.
 //
-// The small helpers here are the only math the rest of the game needs:
-// clamp a value into a band, blend between two numbers, pick from a list,
-// draw a number in a range.
+// The helpers below are the only number-shaping the rest of the game needs:
+// clamp a value into a range, blend between two values, pick one item from
+// a list, draw a number inside a range.
 
 export function clamp(value, min, max) {
   if (value < min) return min;

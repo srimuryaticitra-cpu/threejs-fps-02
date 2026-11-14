@@ -1,9 +1,9 @@
-// The single palette for the whole game — map, bots and HUD all read from
-// here, so the place feels like one garden at dusk and nothing clashes.
-// Six families: the dusk sky, the mossy ground, stone, leaf, shell green for
-// the Kura team, and one warm amber reserved for anything the player must
-// notice at a glance (sites, the pod, the buy menu's accent). The hares get
-// their own orange so the two teams never blur in a firefight.
+// One palette for the whole garden — the map, the bots and the HUD all read
+// from here, so the place feels like a single dusk courtyard and nothing
+// clashes. Six families: the dusk sky, the mossy ground, stone, leaf, shell
+// green for the Kura team, and one warm amber reserved for anything the
+// player has to notice at a glance (sites, the pod, the buy menu's accent).
+// The hares get their own orange so the two teams never blur in a firefight.
 
 export const PALETTE = {
   sky: 0x1d2b33, // dusk sky, fog colour, page background
