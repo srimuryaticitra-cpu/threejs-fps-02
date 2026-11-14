@@ -102,9 +102,9 @@ function imageSize(buf: Buffer): { width: number; height: number } {
 // stay within its caps.
 function verifyBundle() {
   const dossierPath = join(out, 'dossier.json');
+  const dossier = JSON.parse(readFileSync(dossierPath, 'utf8'));
   const dossierBytes = statSync(dossierPath).size;
   if (dossierBytes > 1572864) throw new Error(`verification: dossier is ${dossierBytes} bytes, over the 1.5 MiB cap`);
-  const dossier = JSON.parse(readFileSync(dossierPath, 'utf8'));
   const textBytes = Buffer.byteLength(dossier.text ?? '', 'utf8');
   if (textBytes > 163840) throw new Error(`verification: dossier text is ${textBytes} bytes, over the 163,840 cap`);
   const shots = listShots();
