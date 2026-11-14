@@ -1,39 +1,54 @@
 // Hitscan combat, shared by the player and the bots: one ray from the muzzle
 // through the aim direction (plus spread), against wall meshes and body meshes.
-// A head mesh hit multiplies damage; a wall hit stops the ray. Tracers and impact
-// sparks are pooled meshes — nothing is allocated per shot in the hot loop.
+// A head mesh hit triples the damage; a wall hit stops the ray. Tracers and
+// impact sparks are pooled meshes — nothing is allocated per shot in the hot
+// loop — and the pod's explosion flash is one reusable point light.
 import * as THREE from 'three';
 
 const _raycaster = new THREE.Raycaster();
 const _dir = new THREE.Vector3();
 const _origin = new THREE.Vector3();
-const _hitPoint = new THREE.Vector3();
+const _end = new THREE.Vector3();
 
-export function createEffects(scene) {
-  const tracerMat = new THREE.LineBasicMaterial({ color: 0xffd27a, transparent: true, opacity: 0.9 });
-  const tracers = [];
-  for (let i = 0; i < 24; i += 1) {
+const TRACER_COUNT = 24;
+const SPARK_COUNT = 16;
+
+function makeTracerPool(scene) {
+  const pool = [];
+  for (let i = 0; i < TRACER_COUNT; i += 1) {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
-    const line = new THREE.Line(geo, tracerMat.clone());
+    const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0xffd27a, transparent: true, opacity: 0.9 }));
     line.visible = false;
     line.frustumCulled = false;
     scene.add(line);
-    tracers.push({ line, life: 0 });
+    pool.push({ line, life: 0 });
   }
-  const sparks = [];
-  const sparkGeo = new THREE.SphereGeometry(0.09, 8, 6);
-  const sparkMat = new THREE.MeshBasicMaterial({ color: 0xffc95e, transparent: true });
-  for (let i = 0; i < 16; i += 1) {
-    const mesh = new THREE.Mesh(sparkGeo, sparkMat.clone());
+  return pool;
+}
+
+function makeSparkPool(scene) {
+  const pool = [];
+  const geo = new THREE.SphereGeometry(0.09, 8, 6);
+  for (let i = 0; i < SPARK_COUNT; i += 1) {
+    const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0xffc95e, transparent: true }));
     mesh.visible = false;
     scene.add(mesh);
-    sparks.push({ mesh, life: 0 });
+    pool.push({ mesh, life: 0 });
   }
-  // The pod's explosion flash: one reusable point light.
+  return pool;
+}
+
+export function createEffects(scene) {
   const flash = new THREE.PointLight(0xff9a3c, 0, 18, 1.6);
   scene.add(flash);
-  return { tracers, sparks, flash, tracerIndex: 0, sparkIndex: 0 };
+  return {
+    tracers: makeTracerPool(scene),
+    sparks: makeSparkPool(scene),
+    flash,
+    tracerIndex: 0,
+    sparkIndex: 0,
+  };
 }
 
 function fireTracer(fx, from, to, life = 0.09) {
@@ -69,7 +84,10 @@ export function effectsStep(fx, dt) {
     if (s.life <= 0) continue;
     s.life -= dt;
     if (s.life <= 0) s.mesh.visible = false;
-    else { s.mesh.scale.setScalar(1 + (0.18 - s.life) * 6); s.mesh.material.opacity = s.life / 0.18; }
+    else {
+      s.mesh.scale.setScalar(1 + (0.18 - s.life) * 6);
+      s.mesh.material.opacity = s.life / 0.18;
+    }
   }
   if (fx.flash.intensity > 0) fx.flash.intensity = Math.max(0, fx.flash.intensity - dt * 22);
 }
@@ -77,9 +95,9 @@ export function effectsStep(fx, dt) {
 // Fire one hitscan round.
 //   origin: Vector3 eye position; dir: normalized aim direction (mutated by spread)
 //   spread: radians of random cone; random: the round's seeded stream
-//   targets: array of meshes with userData.agent + userData.part ('head'|'body')
+//   targets: meshes with userData.agent + userData.part ('head'|'body')
 //   blockers: wall meshes that stop the ray
-//   damage: base body damage; headMult; range; falloffAt/falloffMult
+//   def: the weapon definition (damage, headMult, range, falloffAt, falloffMult)
 // Returns { hit: 'agent'|'wall'|null, agent, part, point, distance, damage }.
 // The caller applies damage; this function only decides what the ray met.
 export function shootRay(fx, origin, dir, spread, random, targets, blockers, def) {
@@ -94,9 +112,11 @@ export function shootRay(fx, origin, dir, spread, random, targets, blockers, def
   _raycaster.set(_origin, _dir);
   _raycaster.far = def.range;
   const hits = _raycaster.intersectObjects(targets.concat(blockers), false);
-  const end = _hitPoint.copy(_dir).multiplyScalar(def.range).add(_origin);
-  fireTracer(fx, _origin, end);
-  if (hits.length === 0) return { hit: null, agent: null, part: null, point: end, distance: def.range, damage: 0 };
+  _end.copy(_dir).multiplyScalar(def.range).add(_origin);
+  fireTracer(fx, _origin, _end);
+  if (hits.length === 0) {
+    return { hit: null, agent: null, part: null, point: _end, distance: def.range, damage: 0 };
+  }
   const first = hits[0];
   fireTracer(fx, _origin, first.point);
   if (first.object.userData.agent) {
@@ -104,17 +124,24 @@ export function shootRay(fx, origin, dir, spread, random, targets, blockers, def
     let damage = def.damage * (part === 'head' ? def.headMult : 1);
     if (first.distance > def.falloffAt) damage *= def.falloffMult;
     // No impact spark on the player: the hit point sits centimetres from the
-    // camera, and a spark there would fill the whole view. The hurt sound, the
-    // shake and the health bar already say the player was hit.
+    // camera, and a spark there would fill the whole view. The hurt sound,
+    // the shake and the health bar already say the player was hit.
     if (first.object.userData.agent.kind !== 'player') fireSpark(fx, first.point);
-    return { hit: 'agent', agent: first.object.userData.agent, part, point: first.point, distance: first.distance, damage: Math.round(damage) };
+    return {
+      hit: 'agent',
+      agent: first.object.userData.agent,
+      part,
+      point: first.point,
+      distance: first.distance,
+      damage: Math.round(damage),
+    };
   }
   fireSpark(fx, first.point);
   return { hit: 'wall', agent: null, part: null, point: first.point, distance: first.distance, damage: 0 };
 }
 
-// A thrown leaf grenade: a small green sphere with a simple arc, one wall bounce
-// in XZ and a ground bounce, then a fuse pop. One object per live grenade.
+// A thrown leaf grenade: a small green sphere with a simple arc, one wall
+// bounce in XZ and a ground bounce, then a fuse pop. One object per live grenade.
 export function createGrenade(scene, from, dir, random) {
   const mesh = new THREE.Mesh(
     new THREE.SphereGeometry(0.14, 10, 8),
@@ -139,14 +166,26 @@ export function grenadeStep(g, dt, resolveCircleFn) {
   g.mesh.position.y += g.vy * dt;
   g.mesh.position.z += g.vz * dt;
   const p = g.mesh.position;
-  if (p.y <= 0.14) { p.y = 0.14; g.vy = Math.abs(g.vy) * 0.35; g.vx *= 0.7; g.vz *= 0.7; }
+  if (p.y <= 0.14) {
+    p.y = 0.14;
+    g.vy = Math.abs(g.vy) * 0.35;
+    g.vx *= 0.7;
+    g.vz *= 0.7;
+  }
   const fixed = resolveCircleFn(p.x, p.z, 0.14);
-  if (fixed[0] !== p.x) { p.x = fixed[0]; g.vx = -g.vx * 0.4; }
-  if (fixed[1] !== p.z) { p.z = fixed[1]; g.vz = -g.vz * 0.4; }
+  if (fixed[0] !== p.x) {
+    p.x = fixed[0];
+    g.vx = -g.vx * 0.4;
+  }
+  if (fixed[1] !== p.z) {
+    p.z = fixed[1];
+    g.vz = -g.vz * 0.4;
+  }
   g.fuse -= dt;
   return g.fuse <= 0; // true: time to explode
 }
 
+// Light the reusable explosion flash at a point.
 export function explode(fx, at) {
   fx.flash.position.copy(at);
   fx.flash.position.y = Math.max(1, at.y + 0.5);

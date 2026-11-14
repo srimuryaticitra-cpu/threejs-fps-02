@@ -1,41 +1,39 @@
-// The armoury. Original names, one job each: the free sidearm, the all-round
-// rifle, the close-quarters SMG and the long-range DMR, plus a leaf grenade.
-// Damage is per body hit; the head multiplies it by 3, so stopping to aim pays.
-// Spread grows while moving and with every shot in a burst, and recoil kicks the
-// view up — the numbers below are the whole gunfeel.
+// The armoury: four guns and one leaf grenade, all original names.
+// Damage is per body hit and a headshot triples it, so stopping to aim pays.
+// Spread grows while moving and with every shot in a burst; recoil kicks the
+// view up a little each round. The numbers below are the whole gunfeel —
+// the Kura-9 is free and honest, the Tempurung AR is the workhorse, the
+// Kilap SMG sprays up close, the Teropong DMR punishes anyone who stands
+// still long enough to line it up.
+
+function gun(id, name, kind, price, damage, magSize, reserveMax, fireInterval, reloadTime, auto, spreadBase, spreadMove, spreadBloom, spreadMax, recoil, range, falloffAt, falloffMult) {
+  return {
+    id, name, kind, price,
+    damage, headMult: 3, magSize, reserveMax,
+    fireInterval, reloadTime, auto,
+    spreadBase, spreadMove, spreadBloom, spreadMax,
+    recoil, range, falloffAt, falloffMult,
+  };
+}
+
 export const WEAPONS = {
-  kura9: {
-    id: 'kura9', name: 'Kura-9', kind: 'pistol', price: 0,
-    damage: 26, headMult: 3, magSize: 12, reserveMax: 48,
-    fireInterval: 0.16, reloadTime: 1.1, auto: false,
-    spreadBase: 0.006, spreadMove: 0.02, spreadBloom: 0.004, spreadMax: 0.05,
-    recoil: 0.011, range: 40, falloffAt: 25, falloffMult: 0.8,
-  },
-  tempurung: {
-    id: 'tempurung', name: 'Tempurung AR', kind: 'rifle', price: 1200,
-    damage: 34, headMult: 3, magSize: 25, reserveMax: 100,
-    fireInterval: 0.11, reloadTime: 1.6, auto: true,
-    spreadBase: 0.004, spreadMove: 0.026, spreadBloom: 0.005, spreadMax: 0.06,
-    recoil: 0.014, range: 60, falloffAt: 30, falloffMult: 0.75,
-  },
-  kilap: {
-    id: 'kilap', name: 'Kilap SMG', kind: 'smg', price: 900,
-    damage: 22, headMult: 3, magSize: 30, reserveMax: 120,
-    fireInterval: 0.075, reloadTime: 1.4, auto: true,
-    spreadBase: 0.009, spreadMove: 0.018, spreadBloom: 0.004, spreadMax: 0.07,
-    recoil: 0.008, range: 35, falloffAt: 18, falloffMult: 0.7,
-  },
-  teropong: {
-    id: 'teropong', name: 'Teropong DMR', kind: 'dmr', price: 2200,
-    damage: 80, headMult: 3, magSize: 8, reserveMax: 32,
-    fireInterval: 0.55, reloadTime: 2.2, auto: false,
-    spreadBase: 0.001, spreadMove: 0.045, spreadBloom: 0.012, spreadMax: 0.09,
-    recoil: 0.035, range: 80, falloffAt: 40, falloffMult: 0.9,
-  },
+  kura9: gun('kura9', 'Kura-9', 'pistol', 0, 26, 12, 48, 0.16, 1.1, false, 0.006, 0.02, 0.004, 0.05, 0.011, 40, 25, 0.8),
+  tempurung: gun('tempurung', 'Tempurung AR', 'rifle', 1200, 34, 25, 100, 0.11, 1.6, true, 0.004, 0.026, 0.005, 0.06, 0.014, 60, 30, 0.75),
+  kilap: gun('kilap', 'Kilap SMG', 'smg', 900, 22, 30, 120, 0.075, 1.4, true, 0.009, 0.018, 0.004, 0.07, 0.008, 35, 18, 0.7),
+  teropong: gun('teropong', 'Teropong DMR', 'dmr', 2200, 80, 8, 32, 0.55, 2.2, false, 0.001, 0.045, 0.012, 0.09, 0.035, 80, 40, 0.9),
 };
 
-export const GRENADE = { id: 'granat', name: 'Granat Daun', price: 300, fuse: 1.4, radius: 6.5, damageMax: 90, damageMin: 20 };
+export const GRENADE = {
+  id: 'granat',
+  name: 'Granat Daun',
+  price: 300,
+  fuse: 1.4,
+  radius: 6.5,
+  damageMax: 90,
+  damageMin: 20,
+};
 
+// Buy menu rows in the order the HUD shows them: key 1–4.
 export const BUY_MENU = [
   { key: '1', weapon: 'tempurung' },
   { key: '2', weapon: 'kilap' },
@@ -43,8 +41,9 @@ export const BUY_MENU = [
   { key: '4', weapon: 'granat' },
 ];
 
-// One live weapon instance: mag, reserve, timers and bloom. No allocation per
-// shot — the caller passes in scratch values and reads the result.
+// One live weapon: a definition plus its magazine, reserve, timers and bloom.
+// The caller steps it once per fixed tick and reads weaponCanFire before
+// every shot; nothing here allocates per shot.
 export function createWeaponState(def) {
   return {
     def,
@@ -56,6 +55,8 @@ export function createWeaponState(def) {
   };
 }
 
+// Current spread in radians: base + movement + bloom, crouched tightens it
+// to 60%. Capped at the gun's spreadMax so a long burst stays usable.
 export function weaponSpread(state, moveSpeed, crouched) {
   const def = state.def;
   let spread = def.spreadBase + def.spreadMove * Math.min(1, moveSpeed / 5.5) + state.bloom;

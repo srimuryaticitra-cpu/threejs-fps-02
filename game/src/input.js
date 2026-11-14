@@ -1,7 +1,9 @@
-// Keyboard + mouse for one FPS player. Pointer lock owns the mouse: movement
-// deltas are collected into takeLook() and consumed once per frame, so a frame
-// never reads the same delta twice. Firing is held (auto weapons) or edge
-// triggered (semi-auto) by the caller through state.firing / state.fired.
+// Keyboard and mouse for one FPS player. Pointer lock owns the mouse:
+// movement deltas pile up in takeLook() and are consumed once per frame, so
+// a frame never reads the same delta twice. Firing is held down for auto
+// weapons (state.firing) or edge-triggered for semi-auto ones through
+// takeFired() — the caller decides which flavour its gun wants.
+
 export function createInput(canvas, onLockChange) {
   const state = {
     keys: new Set(),
@@ -12,35 +14,38 @@ export function createInput(canvas, onLockChange) {
     lookY: 0,
   };
 
-  function onKeyDown(event) {
+  const onKeyDown = (event) => {
     if (event.repeat) return;
     state.keys.add(event.code);
     if (event.code === 'Space') event.preventDefault();
-  }
-  function onKeyUp(event) {
+  };
+  const onKeyUp = (event) => {
     state.keys.delete(event.code);
-  }
-  function onMouseMove(event) {
+  };
+  const onMouseMove = (event) => {
     if (!state.locked) return;
     state.lookX += event.movementX;
     state.lookY += event.movementY;
-  }
-  function onMouseDown(event) {
+  };
+  const onMouseDown = (event) => {
     if (!state.locked) return;
-    if (event.button === 0) { state.firing = true; state.fired = true; }
-  }
-  function onMouseUp(event) {
+    if (event.button === 0) {
+      state.firing = true;
+      state.fired = true;
+    }
+  };
+  const onMouseUp = (event) => {
     if (event.button === 0) state.firing = false;
-  }
-  function onLock() {
+  };
+  const onLock = () => {
     state.locked = document.pointerLockElement === canvas;
     if (!state.locked) state.firing = false;
     onLockChange(state.locked);
-  }
-  function onBlur() {
+  };
+  const onBlur = () => {
     state.keys.clear();
     state.firing = false;
-  }
+  };
 
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
@@ -52,23 +57,29 @@ export function createInput(canvas, onLockChange) {
 
   return {
     state,
+
     takeLook() {
       const out = { x: state.lookX, y: state.lookY };
       state.lookX = 0;
       state.lookY = 0;
       return out;
     },
+
     takeFired() {
       const out = state.fired;
       state.fired = false;
       return out;
     },
+
     requestLock() {
       try {
         const p = canvas.requestPointerLock();
         if (p && p.catch) p.catch(() => {});
-      } catch { /* pointer lock unavailable: the game still renders */ }
+      } catch {
+        // Pointer lock unavailable: the game still renders.
+      }
     },
+
     releaseLock() {
       if (document.pointerLockElement) document.exitPointerLock();
     },

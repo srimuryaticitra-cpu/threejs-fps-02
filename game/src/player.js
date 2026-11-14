@@ -1,7 +1,7 @@
-// The player controller: acceleration-based movement with friction, crouch and
-// jump, resolved against the map's AABB colliders. Stopping to aim pays because
-// spread (weapons.js) reads groundSpeed, and crouching halves it again.
-// One state object, one job: where the player is and how fast they move.
+// The player controller: acceleration-based movement with friction, crouch
+// and jump, resolved against the map's AABB colliders. Stopping to aim pays
+// because spread (weapons.js) reads ground speed, and crouching tightens it
+// again. One state object, one job: where the player is and how fast they move.
 import { resolveCircle } from './map.js';
 import { clamp } from './rng.js';
 
@@ -36,14 +36,13 @@ export function playerLook(state, dx, dy) {
   state.pitch = clamp(state.pitch - dy * 0.0021, -1.45, 1.45);
 }
 
-// keys: a Set of KeyboardEvent.code. dt is the fixed step.
-export function playerStep(state, keys, dt) {
-  if (!state.alive) return;
-  const crouched = keys.has('ControlLeft') || keys.has('KeyC');
-  state.crouched = crouched;
-  const targetEye = crouched ? EYE_CROUCH : EYE_STAND;
-  state.eye += (targetEye - state.eye) * Math.min(1, dt * 10);
+export function playerApplyRecoil(state, pitchKick, yawKick) {
+  state.recoilPitch += pitchKick;
+  state.recoilYaw += yawKick;
+}
 
+// Read WASD into a unit vector in local space (forward is -Z).
+function readMoveInput(keys) {
   let fx = 0;
   let fz = 0;
   if (keys.has('KeyW')) fz -= 1;
@@ -51,23 +50,62 @@ export function playerStep(state, keys, dt) {
   if (keys.has('KeyA')) fx -= 1;
   if (keys.has('KeyD')) fx += 1;
   const len = Math.hypot(fx, fz);
-  if (len > 0) { fx /= len; fz /= len; }
-  const sin = Math.sin(state.yaw);
-  const cos = Math.cos(state.yaw);
-  // Forward is -Z rotated by yaw; right is +X rotated by yaw.
-  const wx = fx * cos - fz * sin;
-  const wz = fx * sin + fz * cos;
-  const speed = crouched ? CROUCH_SPEED : WALK_SPEED;
-  state.vx += wx * ACCEL * dt;
-  state.vz += wz * ACCEL * dt;
-  // Friction pulls velocity toward the input direction's cap, never past it.
-  const sp = Math.hypot(state.vx, state.vz);
-  const cap = len > 0 ? speed : 0;
-  if (sp > cap) {
-    const dec = Math.max(cap, sp - FRICTION * sp * dt);
-    state.vx = (state.vx / sp) * dec;
-    state.vz = (state.vz / sp) * dec;
+  if (len > 0) {
+    fx /= len;
+    fz /= len;
   }
+  return { fx, fz, active: len > 0 };
+}
+
+// Rotate the local input vector into world space by the player's yaw.
+function toWorld(fx, fz, yaw) {
+  const sin = Math.sin(yaw);
+  const cos = Math.cos(yaw);
+  return { x: fx * cos - fz * sin, z: fx * sin + fz * cos };
+}
+
+// Friction pulls the velocity toward the input direction's cap, never past
+// it, so letting go of the keys stops the tortoise quickly but not instantly.
+function applyFriction(state, cap, dt) {
+  const sp = Math.hypot(state.vx, state.vz);
+  if (sp <= cap) return;
+  const dec = Math.max(cap, sp - FRICTION * sp * dt);
+  state.vx = (state.vx / sp) * dec;
+  state.vz = (state.vz / sp) * dec;
+}
+
+function stepVertical(state, keys, dt) {
+  if (keys.has('Space') && state.grounded) {
+    state.vy = JUMP_SPEED;
+    state.grounded = false;
+  }
+  if (!state.grounded) {
+    state.vy -= GRAVITY * dt;
+    state.y += state.vy * dt;
+    if (state.y <= 0) {
+      state.y = 0;
+      state.vy = 0;
+      state.grounded = true;
+    }
+  }
+}
+
+// keys: a Set of KeyboardEvent.code. dt is the fixed step.
+export function playerStep(state, keys, dt) {
+  if (!state.alive) return;
+
+  const crouched = keys.has('ControlLeft') || keys.has('KeyC');
+  state.crouched = crouched;
+  const targetEye = crouched ? EYE_CROUCH : EYE_STAND;
+  state.eye += (targetEye - state.eye) * Math.min(1, dt * 10);
+
+  const input = readMoveInput(keys);
+  const world = toWorld(input.fx, input.fz, state.yaw);
+  const speed = crouched ? CROUCH_SPEED : WALK_SPEED;
+  state.vx += world.x * ACCEL * dt;
+  state.vz += world.z * ACCEL * dt;
+  applyFriction(state, input.active ? speed : 0, dt);
+
   state.x += state.vx * dt;
   state.z += state.vz * dt;
   const fixed = resolveCircle(state.x, state.z, RADIUS);
@@ -77,22 +115,10 @@ export function playerStep(state, keys, dt) {
   state.x = clamp(state.x, -21.2 + RADIUS, 21.2 - RADIUS);
   state.z = clamp(state.z, -15.2 + RADIUS, 15.2 - RADIUS);
 
-  if ((keys.has('Space')) && state.grounded) {
-    state.vy = JUMP_SPEED;
-    state.grounded = false;
-  }
-  if (!state.grounded) {
-    state.vy -= GRAVITY * dt;
-    state.y += state.vy * dt;
-    if (state.y <= 0) { state.y = 0; state.vy = 0; state.grounded = true; }
-  }
+  stepVertical(state, keys, dt);
+
   state.speed2d = Math.hypot(state.vx, state.vz);
   // Recoil recovers toward zero; the view kick is applied on top in main.js.
   state.recoilPitch += (0 - state.recoilPitch) * Math.min(1, dt * 7);
   state.recoilYaw += (0 - state.recoilYaw) * Math.min(1, dt * 7);
-}
-
-export function playerApplyRecoil(state, pitchKick, yawKick) {
-  state.recoilPitch += pitchKick;
-  state.recoilYaw += yawKick;
 }
