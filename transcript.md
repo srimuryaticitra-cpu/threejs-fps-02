@@ -164,6 +164,94 @@ Copied unchanged, not authored: `vendor/makefun-threejs.ts` (from the kit),
   policy file + SHA-256 switches above (the file contains the
   `hatch-webgl-all-origins-v1` sentinel).
 
+## Continuation pass — verification + revision (15 Nov 2026 ~05:56–06:30 WIB)
+
+A fresh continuation session re-ran the whole verification on the rewritten
+code, then revised `main.ts` and `game.js` in separate passes (plus a small
+`main.js` loop fix), and re-verified everything.
+
+- **Build** (`MAKEFUN_OUTPUT_DIR=/tmp/kura02-out6`, after the revisions):
+  `KURA OPS -02 bundle OK: dossier 380666 bytes (text 113223), 4 screenshot(s)
+  197659 bytes, game/ 16 files 2246834 bytes.` Caps, checked explicitly:
+  dossier 380,666 ≤ 1.5 MiB; dossier text 113,223 ≤ 163,840 bytes;
+  screenshots 44,291–52,709 bytes each (≤ 256 KiB), all 1280x663 (long side
+  ≤ 1280, short side 663 ≥ 480); game/ 16 files / 2,246,834 bytes (caps 993 /
+  48 MiB); index.html 10,971 bytes (cap 1 MiB). The dossier's sha256 for each
+  image was recomputed from the file on disk and matches.
+- **Scripted fight capture vs RNG draw order (verified, no change needed):**
+  Tempurung AR deals 34 per body hit, a hare has 100 HP, so 3 hits = 102 —
+  a kill by construction. At the scripted 12 m range the spread grows
+  0.004 → 0.009 → 0.014 rad across the three shots, so the worst-case
+  deviation is ~0.24 m against a 0.42 m body radius, and the range is under
+  the 30 m falloff start, so all three shots are guaranteed hits, not luck.
+  Observed: kills=1, botsAlive 6, ammo 22/100, money $1,100 (+$300 kill).
+- **Screenshots re-captured twice in a row:** all four deterministic
+  (identical sha256 across runs, zero console errors, zero failed requests).
+  Lobby 6febb5a9…, plant 9d348d51…, win 4043ab7d… are byte-identical to the
+  previous session; fight changed 5d2971a0… → e80abbc7… (44,291 bytes) because
+  the shake-RNG fix below shifted the seeded stream for the hare's return
+  shot — the frame was eyeballed and still shows everything it must: the
+  killfeed `Kamu ▸ Lari · Tempurung AR`, shield chip `PERISAI AKTIF — 1
+  TEMBAKAN DITAHAN`, HP 100, ammo 22/100, round 2, score 1–1, hares at mid.
+- **Live play-test (live3 driver, ~35 s to round end):** menu → buy (grenade
+  bought $800 → $500, shield picked up by a bot at mid during buy) → live at
+  ~t=20–32 s wall, player took damage (HP 78), died at t=35 s, round ended
+  0–1, lose money +$600 → $1,100. Zero console errors, zero failed requests.
+- **Anomaly seen once, not a game bug:** the older test driver showed the
+  game back at phase `menu`, round 0, between t=21 s and t=34 s of its live
+  run. No code path in the game returns to `menu` (verified by grep — only
+  the initial state and `onPlayClick` → `startMatch`), so that was a
+  headless-harness flake (page re-initialised), not a game reset. It did not
+  recur in the live3 run above, nor in the previous session's 70 s live run.
+
+### Bugs fixed in this pass
+
+- `game.js` — **stale plant bar on death.** If the player died while holding
+  E mid-plant, `stepPlanting` stopped running (it only runs while alive), so
+  `plantProgress` never reset: the player's plant bar froze on screen and
+  the bot plant/defuse bar (gated on `plantProgress === 0`) never showed for
+  the rest of the round. Fixed in `damageAgent`'s player-death branch:
+  reset `plantProgress` to 0 and hide the bar at the moment of death. Found
+  by code inspection during verification; regression-checked by the unchanged
+  plant capture (hash 9d348d51…), but not live-triggered — killing the player
+  mid-plant headlessly was not arranged in this session.
+- `game.js` — **wasted RNG draws in `syncView`.** The camera shake drew two
+  numbers from the round's seeded stream every frame even with shake at
+  zero, so the stream's state after N steps depended on how many frames had
+  rendered instead of on the simulation alone. Now the jitter is only drawn
+  while `G.shake > 0`. Side effect: the fight capture's pixels shifted
+  (see above); the game state in it is unchanged.
+- `main.js` — **match clock starved on slow renderers.** At ~5 fps under
+  SwiftShader the 0.1 s dt clamp plus the 5-step cap advanced the game only
+  ~0.3× wall speed, so the 12 s buy phase lasted ~33–43 s wall. Raised to a
+  0.25 s clamp and 10 steps per frame (buy now ends at ~t=20–32 s wall, about
+  1.7× faster); at 60 fps nothing changes (one step per frame as before).
+- `main.ts` — **post-build verification was too thin.** It only parsed the
+  dossier and checked screenshot size and game totals; `buildDossier`
+  already refuses bad bundles, but a bad bundle would still have failed at
+  the scorer instead of here. `verifyBundle` now also enforces: dossier
+  ≤ 1.5 MiB, dossier text ≤ 163,840 bytes, at most 4 screenshots, each
+  screenshot's real JPEG/PNG dimensions (parsed from the header bytes, no
+  dependency) with long side ≤ 1280 and short side ≥ 480, game/index.html
+  ≤ 1 MiB, and the dossier's per-image sha256 matching the file on disk.
+  The new checks pass on the final bundle above.
+- Note: `node --check main.ts` fails with a syntax error — that is expected,
+  not a regression: main.ts is TypeScript and only runs under Node's type
+  stripping (`node main.ts` builds fine). The earlier transcript line saying
+  it passed `node --check` was wrong.
+
+### Files changed in this pass
+
+- `main.ts` 98 → 143 lines (+45: `imageSize`, stronger `verifyBundle`).
+- `game/src/game.js` 979 → 993 lines (+14: death-path plant reset,
+  shake-draw guard).
+- `game/src/main.js` 123 → 128 lines (+5: step budget 5 → 10, dt clamp
+  0.1 → 0.25).
+- `screenshots/2-fight.jpg` re-captured (new hash e80abbc7…); the other
+  three screenshots are byte-identical to before. No repo created, no
+  submission made (per the task). The bounty opened 15 Nov 2026 04:30 WIB
+  and ends 17 Nov 2026 04:30 WIB.
+
 ## Not done
 
 - No GitHub repo created, no submission made (per the task: report when the
