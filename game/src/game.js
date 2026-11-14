@@ -18,10 +18,11 @@
 // - HUD polish: a shield chip by the health bar and a planted-pod label under
 //   the timer, plus the shield pickup and the planted pod drawn on the minimap.
 import * as THREE from 'three';
-import { createMap, SITES, SPAWNS, SHIELD_SPAWN, resolveCircle, segmentBlocked } from './map.js';
+import { createMap, SITES, SPAWNS, SHIELD_SPAWN, KANTONG_BIJI_SPOTS, resolveCircle, segmentBlocked } from './map.js';
 import { createPlayerState, playerStep, playerLook, playerApplyRecoil } from './player.js';
 import { WEAPONS, GRENADE, createWeaponState, weaponSpread, weaponCanFire, weaponStep } from './weapons.js';
-import { createEffects, shootRay, createGrenade, grenadeStep, explode, effectsStep } from './combat.js';
+import { createEffects, shootRay, createGrenade, grenadeStep, explode, effectsStep, seedLobFromAim } from './combat.js';
+import { createSeedArsenal, buildSeedMeshDefault, buildKantongMeshDefault, KETAPEL_CONFIG, KETAPEL_BIJI_ID, initSeedAmmo } from './seeds.js';
 import { makeBots, resetBot, assignRoundRoles, botStep } from './bots.js';
 import { createHud, drawMinimap } from './hud.js';
 import { createAudio } from './audio.js';
@@ -151,6 +152,47 @@ export function createGame(scene, camera, random, shotMode) {
   const { viewmodel, vmFlash } = buildViewmodel(camera);
   const bots = makeBots(scene, random);
 
+  // Ketapel Biji: the seed arsenal, wired to this match. Its env adapts the
+  // game to the module: meshes from THREE, the flat garden floor, wall tests
+  // from resolveCircle, damage through the single funnel, sounds through the
+  // synth, and the five pouch spots from the map. Agents get stable ids so
+  // a seed always knows who fired it, and a y of 0 so splash math works.
+  playerAgent.id = 'player';
+  bots.forEach((bot) => {
+    bot.id = `bot-${bot.name.toLowerCase()}`;
+    bot.isBot = true;
+    bot.y = 0;
+    initSeedAmmo(bot);
+  });
+  initSeedAmmo(playerAgent);
+  const seedArsenal = createSeedArsenal({
+    scene,
+    buildSeedMesh: (seed) => buildSeedMeshDefault(THREE, seed),
+    buildKantongMesh: (pouch) => buildKantongMeshDefault(THREE, pouch),
+    groundHeightAt: () => 0,
+    isBlockedAt: (x, y, z) => {
+      const fixed = resolveCircle(x, z, 0.14);
+      return fixed[0] !== x || fixed[1] !== z;
+    },
+    applySeedDamage: (actor, amount, ownerId, kind) => {
+      const attacker = ownerId === 'player' ? playerAgent : bots.find((b) => b.id === ownerId) || null;
+      damageAgent(actor, amount, attacker, 'Ketapel Biji', 'body');
+      if (attacker === playerAgent && actor !== playerAgent) {
+        hud.hitMarker(actor.health <= 0);
+        audio.hit();
+      }
+    },
+    playSeedSound: (eventName) => audio.seed(eventName),
+    kantongSpots: () => KANTONG_BIJI_SPOTS,
+    spawnSeedBurst: (x, y, z) => explode(fx, { x, y, z }),
+    onKantongTaken: (actor, pouch, gained) => {
+      if (actor === playerAgent && gained > 0) {
+        hud.feed(`<b class="kura">Kamu</b> memungut Kantong Biji (+${gained} biji)`);
+      }
+    },
+    onSeedFired: (owner) => pushNoise(owner.x, owner.z),
+  });
+
   const G = {
     scene, camera, random, shotMode,
     phase: 'menu', // menu | buy | live | roundEnd | matchEnd
@@ -196,6 +238,8 @@ export function createGame(scene, camera, random, shotMode) {
     // Hare difficulty ramp, 0..1: grows with the round number and with how
     // far Kura leads, so a runaway match tightens instead of snowballing.
     hareBoost: 0,
+    // Ketapel Biji arsenal: live seeds, pouch pickups and per-owner ammo.
+    seedArsenal,
   };
 
   // ---- small world helpers ----
@@ -238,16 +282,15 @@ export function createGame(scene, camera, random, shotMode) {
       if (player.health <= 0) {
         player.alive = false;
         G.deaths += 1;
-        // Dying mid-plant used to freeze the plant bar on screen: planting
-        // only advances while the player is alive, so the progress never
-        // reset and the bot plant/defuse bar (which waits for
-        // plantProgress === 0) never showed for the rest of the round.
-        // Clear it here, at the moment of death.
+        hud.banner('KAMU GUGUR', 'Tim Kura masih berjuang — tonton sampai ronde berakhir.', 3);
+        // Dying mid-plant used to freeze the plant bar on screen: stepPlanting
+        // only runs while the player is alive, so the progress never reset and
+        // the bot plant/defuse bar (gated on plantProgress === 0) never showed
+        // for the rest of the round. Clear it here, at the moment of death.
         if (G.plantProgress > 0) {
           G.plantProgress = 0;
           hud.hidePlant();
         }
-        hud.banner('KAMU GUGUR', 'Tim Kura masih berjuang — tonton sampai ronde berakhir.', 3);
         if (G.carrier === playerAgent) passCarrier();
         checkRoundEnd();
       }
@@ -331,6 +374,23 @@ export function createGame(scene, camera, random, shotMode) {
   function playerShoot() {
     const def = G.weapon.def;
     playerEyeAndAim();
+    // Ketapel Biji: no hitscan ray — lob a seed on a solved parabola. The
+    // weapon's magazine mirrors the pouch ammo, so the fire gate, the dry
+    // click and the HUD all read the same number.
+    if (def.kind === 'lob') {
+      const lob = seedLobFromAim(seedArsenal, playerAgent, _eye, _dir, G.now * 1000);
+      if (!lob.ok) {
+        audio.dry();
+        return;
+      }
+      G.weapon.mag = playerAgent.seedAmmo;
+      G.weapon.cooldown = def.fireInterval;
+      playerApplyRecoil(player, def.recoil * (0.8 + random() * 0.4), 0);
+      G.viewKick = 1;
+      G.flashTimer = 0.05;
+      pushNoise(player.x, player.z);
+      return;
+    }
     const spread = weaponSpread(G.weapon, player.speed2d, player.crouched);
     // Matrices must be fresh: a scripted shot before the first render would
     // otherwise raycast against stale (spawn-time) transforms.
@@ -573,6 +633,11 @@ export function createGame(scene, camera, random, shotMode) {
       G.money -= def.price;
       G.weapon = createWeaponState(def);
       audio.buy();
+      if (item === KETAPEL_BIJI_ID) {
+        playerAgent.seedAmmo = KETAPEL_CONFIG.startBiji;
+        G.weapon.mag = playerAgent.seedAmmo;
+        hud.feed('<b class="kura">Kamu</b> membeli <b>Ketapel Biji</b> — lob biji parabola, isi ulang dari Kantong Biji di map');
+      }
     }
     hud.setMoney(G.money);
     hud.markBuyAffordable(G.money);
@@ -601,6 +666,7 @@ export function createGame(scene, camera, random, shotMode) {
     if (pressed('Digit2')) buy('kilap');
     if (pressed('Digit3')) buy('teropong');
     if (pressed('Digit4')) buy('granat');
+    if (pressed('Digit5')) buy('ketapel');
     if (pressed('KeyB')) {
       if (hud.els.buy.classList.contains('hidden')) hud.showBuy(G.money);
       else hud.hideBuy();
@@ -683,6 +749,17 @@ export function createGame(scene, camera, random, shotMode) {
     }
   }
 
+  // Bots and their ketapels: a living bot lobs a seed only at the foe it
+  // already perceives (bot.target), so seeds never fly at unseen enemies
+  // through a hedge. Out of seeds, a bot just keeps its route — walking
+  // past a Kantong Biji refills it for free on the next update.
+  function stepSeedBots() {
+    for (const bot of bots) {
+      if (!bot.alive || !bot.target) continue;
+      seedArsenal.botThink(bot, [bot.target], G.now * 1000);
+    }
+  }
+
   // Bots run in buy (they walk to holds) and live; they freeze in roundEnd.
   function stepBots(dt) {
     const ctx = {
@@ -750,13 +827,13 @@ export function createGame(scene, camera, random, shotMode) {
     proxyGroup.visible = player.alive;
     const shakeAmp = G.shake * 0.03;
     G.shake = Math.max(0, G.shake - dt * 1.4);
-    // Camera shake only draws from the round's seeded stream while the
-    // screen is actually shaking: drawing two numbers every frame even
-    // with shake at zero made the stream's state after N steps depend on
-    // how many frames had rendered instead of on the simulation alone.
+    camera.position.set(player.x, player.y + player.eye, player.z);
+    // Camera shake only draws from the round's seeded stream while the screen
+    // is actually shaking: before, two numbers were drawn every frame even
+    // with shake at zero, so the stream's state after N steps depended on how
+    // many frames had rendered instead of on the simulation alone.
     const shakeX = G.shake > 0 ? (random() * 2 - 1) * shakeAmp : 0;
     const shakeY = G.shake > 0 ? (random() * 2 - 1) * shakeAmp : 0;
-    camera.position.set(player.x, player.y + player.eye, player.z);
     camera.rotation.set(
       player.pitch + player.recoilPitch + shakeX,
       player.yaw + player.recoilYaw + shakeY,
@@ -779,7 +856,8 @@ export function createGame(scene, camera, random, shotMode) {
   function syncHud() {
     hud.setHealth(Math.ceil(player.health));
     hud.setMoney(G.money);
-    hud.setAmmo(G.weapon.mag, G.weapon.reserve, G.weapon.def.name);
+    if (G.weapon.def.kind === 'lob') hud.setSeedAmmo(playerAgent.seedAmmo ?? 0, KETAPEL_CONFIG.maxBiji);
+    else hud.setAmmo(G.weapon.mag, G.weapon.reserve, G.weapon.def.name);
     hud.setScore(G.scoreKura, G.scoreKelinci, Math.max(1, G.round));
     if (G.phase === 'buy') hud.setTimer(G.buyTimer, false);
     else if (G.planted) hud.setTimer(G.podTimer, true);
@@ -821,6 +899,16 @@ export function createGame(scene, camera, random, shotMode) {
         explodeGrenade(g);
         G.grenadesLive.splice(i, 1);
       }
+    }
+
+    // Ketapel Biji: pouches respawn and seeds fly in buy and live; bots lob
+    // seeds only once live, so a round is never decided in the buy phase.
+    // The ketapel's magazine mirrors the pouch ammo after every update, so
+    // picking up a Kantong Biji at zero ammo re-arms the weapon at once.
+    if (G.phase === 'buy' || G.phase === 'live') {
+      seedArsenal.update(dt, G.now * 1000, [playerAgent, ...bots]);
+      if (G.weapon.def.kind === 'lob') G.weapon.mag = playerAgent.seedAmmo;
+      if (G.phase === 'live') stepSeedBots();
     }
 
     if (G.phase === 'buy' || G.phase === 'live') stepBots(dt);

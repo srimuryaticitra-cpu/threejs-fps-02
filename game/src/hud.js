@@ -90,6 +90,15 @@ export function createHud() {
       els.ammoBox.classList.toggle('empty', mag === 0);
     },
 
+    // Ketapel Biji ammo: biji in the pouch over the pouch maximum, with the
+    // weapon name fixed so the HUD never shows a stale gun name after a buy.
+    setSeedAmmo(ammo, max) {
+      set('mag', els.ammoMag, ammo);
+      set('res', els.ammoReserve, max, (el, v) => { el.textContent = `/ ${v} maks`; });
+      set('wname', els.weaponName, 'Ketapel Biji');
+      els.ammoBox.classList.toggle('empty', ammo === 0);
+    },
+
     setTimer(seconds, planted) {
       const s = Math.max(0, Math.ceil(seconds));
       const text = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;

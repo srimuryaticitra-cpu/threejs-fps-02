@@ -50,6 +50,8 @@ window.__dbg = () => ({
   shield: G.playerAgent.shield,
   shieldAvailable: G.shieldAvailable,
   hareBoost: G.hareBoost,
+  seedAmmo: G.playerAgent.seedAmmo,
+  seeds: G.seedArsenal ? G.seedArsenal.summary() : null,
 });
 
 game.G.hud.onPlay(() => {
@@ -77,10 +79,10 @@ let frozen = false;
 function frame(now) {
   requestAnimationFrame(frame);
   // A slow renderer used to starve the match clock: at ~5 fps under
-  // SwiftShader the 0.1 s dt clamp plus the 5-step cap advanced the game
-  // only ~0.4 s per wall second, so the 12 s buy phase lasted ~33 s wall.
-  // Ten steps of cheap simulation per frame track wall time down to
-  // ~6 fps; at 60 fps this changes nothing (one step per frame as before).
+  // SwiftShader the 0.1 s dt clamp plus the 5-step cap advanced the game only
+  // ~0.42 s per wall second, so the 12 s buy phase lasted ~33 s wall. Ten
+  // steps of cheap simulation per frame track wall time down to ~6 fps; at
+  // 60 fps this changes nothing (one step per frame as before).
   const dt = Math.min((now - lastTime) / 1000, 0.25);
   lastTime = now;
   if (!frozen) {

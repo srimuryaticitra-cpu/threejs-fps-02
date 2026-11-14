@@ -135,5 +135,22 @@ export function createAudio() {
     },
 
     click() { tone(600, 0.04, 'square', 0.08); },
+
+    // Ketapel Biji: a soft elastic thwip on release, a dull pop when the
+    // seed bursts, and a bright two-note chime when a Kantong Biji is picked up.
+    seed(kind) {
+      if (kind === 'seed-shoot') {
+        noise(0.08, 2400, 0.25, 'highpass');
+        tone(520, 0.09, 'sine', 0.12, 180);
+      } else if (kind === 'seed-splash') {
+        noise(0.14, 800, 0.35);
+        tone(140, 0.12, 'sine', 0.14, 60);
+      } else if (kind === 'seed-pickup') {
+        tone(880, 0.07, 'sine', 0.16);
+        later(70, () => tone(1174, 0.1, 'sine', 0.16));
+      } else {
+        tone(660, 0.05, 'square', 0.08);
+      }
+    },
   };
 }

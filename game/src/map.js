@@ -89,6 +89,17 @@ export const SPAWNS = {
 // of the mid fountain, on the Kura push route to mid (waypoint midSouth is [0, 6]).
 export const SHIELD_SPAWN = [0, 4.5];
 
+// Kantong Biji: five seed-pouch spots on open ground — mid first (so the
+// lobby capture already shows one), then one near each site and one on each
+// low lane, so a lobber never has to cross the whole garden to reload.
+export const KANTONG_BIJI_SPOTS = [
+  { x: 0, y: 0.55, z: 6 },
+  { x: -18, y: 0.55, z: 2 },
+  { x: 18, y: 0.55, z: -2 },
+  { x: -10, y: 0.55, z: 10 },
+  { x: 10, y: 0.55, z: -10 },
+];
+
 // Circle-vs-AABB slide: returns the corrected [x, z] after pushing a circle
 // of radius r out of every collider it overlaps. Pure math, no allocations.
 export function resolveCircle(x, z, r) {

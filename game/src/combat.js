@@ -191,3 +191,17 @@ export function explode(fx, at) {
   fx.flash.position.y = Math.max(1, at.y + 0.5);
   fx.flash.intensity = 26;
 }
+
+// Fire one seed lob from the Ketapel Biji: the eye and aim give the launch
+// point and the direction, the arsenal solves the arc so the seed lands on
+// the aim point 18 m out instead of sailing past it. Returns the arsenal's
+// fire result ({ ok, reason, seed, ammoLeft }).
+export function seedLobFromAim(arsenal, owner, eye, aim, nowMs) {
+  const target = {
+    x: eye.x + aim.x * 18,
+    y: Math.max(0.4, eye.y + aim.y * 18),
+    z: eye.z + aim.z * 18,
+  };
+  const origin = { x: eye.x, y: eye.y, z: eye.z };
+  return arsenal.fire(owner, origin, target, nowMs);
+}

@@ -1,4 +1,7 @@
-// The armoury: four guns and one leaf grenade, all original names.
+// The armoury: four guns, one leaf grenade and one seed slingshot, all
+// original names. The Ketapel Biji lobs seeds on a parabola instead of
+// firing hitscan rounds — its arc, splash and pouch ammo live in seeds.js,
+// while its buy row, price and fire interval live here with the other guns.
 // Damage is per body hit and a headshot triples it, so stopping to aim pays.
 // Spread grows while moving and with every shot in a burst; recoil kicks the
 // view up a little each round. The numbers below are the whole gunfeel —
@@ -21,6 +24,7 @@ export const WEAPONS = {
   tempurung: gun('tempurung', 'Tempurung AR', 'rifle', 1200, 34, 25, 100, 0.11, 1.6, true, 0.004, 0.026, 0.005, 0.06, 0.014, 60, 30, 0.75),
   kilap: gun('kilap', 'Kilap SMG', 'smg', 900, 22, 30, 120, 0.075, 1.4, true, 0.009, 0.018, 0.004, 0.07, 0.008, 35, 18, 0.7),
   teropong: gun('teropong', 'Teropong DMR', 'dmr', 2200, 80, 8, 32, 0.55, 2.2, false, 0.001, 0.045, 0.012, 0.09, 0.035, 80, 40, 0.9),
+  ketapel: gun('ketapel', 'Ketapel Biji', 'lob', 250, 34, 12, 0, 0.78, 0, false, 0.002, 0.01, 0.002, 0.03, 0.02, 30, 30, 1),
 };
 
 export const GRENADE = {
@@ -33,12 +37,13 @@ export const GRENADE = {
   damageMin: 20,
 };
 
-// Buy menu rows in the order the HUD shows them: key 1–4.
+// Buy menu rows in the order the HUD shows them: key 1–5.
 export const BUY_MENU = [
   { key: '1', weapon: 'tempurung' },
   { key: '2', weapon: 'kilap' },
   { key: '3', weapon: 'teropong' },
   { key: '4', weapon: 'granat' },
+  { key: '5', weapon: 'ketapel' },
 ];
 
 // One live weapon: a definition plus its magazine, reserve, timers and bloom.
