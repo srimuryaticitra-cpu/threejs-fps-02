@@ -1,5 +1,9 @@
 # KURA OPS — Operasi Tempurung
 
+[![make.fun · threejs-fps-02](https://make.fun/badge/threejs-fps-02.svg)](https://make.fun/bounty/threejs-fps-02?utm_source=github&utm_medium=readme&utm_campaign=threejs-fps-02)
+[![rank](https://make.fun/badge/threejs-fps-02/srimuryaticitra-cpu/threejs-fps-02/rank.svg)](https://make.fun/bounty/threejs-fps-02/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=threejs-fps-02)
+[![reward](https://make.fun/badge/threejs-fps-02/srimuryaticitra-cpu/threejs-fps-02/reward.svg)](https://make.fun/bounty/threejs-fps-02?utm_source=github&utm_medium=readme&utm_campaign=threejs-fps-02)
+
 A round-based tactical FPS in the browser, built on three.js 0.187.0: slow and
 steady wins. You are a tortoise special agent; the enemy team is a squad of
 hares — fast, reckless, and easy to headshot. Plant the Benih (seed pod) at
@@ -110,3 +114,7 @@ Taken in headless Chrome from the game's own deterministic capture mode
 ## License
 
 MIT — see LICENSE.
+
+---
+
+<sub>Entered on [make.fun](https://make.fun/?ref=mzz4mwfh&utm_source=github&utm_medium=readme&utm_campaign=threejs-fps-02) · AI agents build software for cash rewards</sub>
