@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>KURA OPS — Operasi Tempurung</title>
 <style>
-  /* Look plan: dusk garden, six colours. Canvas, surface, hairline, ink, muted, amber. */
+  /* Look plan: dusk garden, six colours. Canvas, surface, hairline, ink,
+     muted, amber, shell green for Kura, hare orange for Kelinci. */
   :root {
     --canvas: #1d2b33;
     --surface: rgba(24, 32, 28, 0.88);
@@ -25,6 +26,8 @@
   #hud { position: fixed; inset: 0; pointer-events: none; }
   .hidden { display: none !important; }
 
+  /* Centre: crosshair and hitmarker. The crosshair gap is driven by the
+     live spread (--gap), so it breathes as the gun does. */
   #crosshair { position: fixed; left: 50%; top: 50%; width: 0; height: 0; --gap: 8px; }
   #crosshair i { position: absolute; background: var(--ink); opacity: .9; }
   #crosshair i:nth-child(1) { left: -1px; top: calc(-1 * var(--gap) - 8px); width: 2px; height: 8px; }
@@ -42,6 +45,7 @@
   #hitmarker i:nth-child(3) { top: 14px; left: 0; height: 2px; width: 9px; }
   #hitmarker i:nth-child(4) { top: 14px; right: 0; height: 2px; width: 9px; }
 
+  /* Top: timer, planted-pod label, round, score. */
   #topbar { position: fixed; top: 18px; left: 50%; transform: translateX(-50%); text-align: center; }
   #timer { font-family: var(--font-readout); font-size: 30px; line-height: 1; }
   #timer.danger { color: var(--danger); }
@@ -51,6 +55,7 @@
   #score-line .kura { color: var(--shell); }
   #score-line .kelinci { color: var(--hare); }
 
+  /* Corners: minimap (top left), killfeed (top right). */
   #minimap { position: fixed; top: 18px; left: 18px; width: 168px; height: 122px; border: 1px solid var(--hairline); border-radius: 4px; background: rgba(20, 26, 22, .85); }
 
   #feed { position: fixed; top: 18px; right: 18px; width: 300px; text-align: right; font-size: 13px; line-height: 1.5; }
@@ -58,6 +63,7 @@
   #feed .kura { color: var(--shell); }
   #feed .kelinci { color: var(--hare); }
 
+  /* Bottom left: health bar, money, and the shield chip. */
   #health { position: fixed; left: 32px; bottom: 24px; width: 220px; }
   #health-bar { height: 10px; border: 1px solid var(--hairline); border-radius: 5px; overflow: hidden; background: rgba(0,0,0,.45); }
   #health-fill { height: 100%; width: 100%; background: var(--shell); }
@@ -65,12 +71,14 @@
   #money { color: var(--accent); }
   #shield-chip { margin-top: 6px; font-family: var(--font-readout); font-size: 12px; letter-spacing: .1em; color: var(--shell); border: 1px solid var(--shell); border-radius: 4px; padding: 3px 8px; display: inline-block; background: rgba(111, 174, 94, .12); }
 
+  /* Bottom right: weapon name and ammo. */
   #ammo { position: fixed; right: 32px; bottom: 24px; text-align: right; }
   #weapon-name { font-size: 13px; letter-spacing: .1em; color: var(--muted); text-transform: uppercase; }
   #ammo-mag { font-family: var(--font-readout); font-size: 56px; line-height: 1; }
   #ammo-reserve { font-family: var(--font-readout); font-size: 16px; color: var(--muted); }
   #ammo.empty #ammo-mag { color: var(--accent); }
 
+  /* Middle: round banner and the plant/defuse bar. */
   #banner { position: fixed; top: 22%; left: 50%; transform: translateX(-50%); text-align: center; text-shadow: 0 2px 8px rgba(0,0,0,.8); }
   #banner-title { font-size: 34px; font-weight: 600; letter-spacing: -.01em; }
   #banner-sub { margin-top: 6px; font-size: 15px; color: var(--ink); opacity: .9; }
@@ -80,6 +88,7 @@
   #plant-bar { height: 8px; border: 1px solid var(--hairline); border-radius: 4px; overflow: hidden; background: rgba(0,0,0,.5); }
   #plant-fill { height: 100%; width: 0%; background: var(--accent); }
 
+  /* Buy menu (left, centred vertically) and its rows. */
   #buy { position: fixed; left: 24px; top: 50%; transform: translateY(-50%); width: 300px; padding: 18px; background: var(--surface); border: 1px solid var(--hairline); border-radius: 6px; pointer-events: auto; }
   #buy h2 { margin: 0 0 4px; font-size: 18px; }
   #buy .buy-sub { margin: 0 0 12px; font-size: 13px; color: var(--muted); }
@@ -90,6 +99,7 @@
   .buy-row kbd { font-family: var(--font-readout); font-size: 12px; color: var(--muted); }
   .buy-row .price { font-family: var(--font-readout); color: var(--accent); }
 
+  /* Full-screen overlay: menu, pause, match end. */
   .overlay { position: fixed; inset: 0; display: grid; place-items: center; padding: 24px; background: rgba(29, 43, 51, .86); }
   .overlay[hidden] { display: none; }
   .panel { width: min(480px, 100%); padding: 32px; background: #202a26; border: 1px solid var(--hairline); border-radius: 6px; }
