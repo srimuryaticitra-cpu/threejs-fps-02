@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KURA OPS — Operasi Tempurung</title>
+<style>
+  /* Look plan: dusk garden, six colours. Canvas, surface, hairline, ink, muted, amber. */
+  :root {
+    --canvas: #1d2b33;
+    --surface: rgba(24, 32, 28, 0.88);
+    --hairline: #3a4a42;
+    --ink: #e9e6df;
+    --muted: #9aa39a;
+    --accent: #f0a830;
+    --shell: #6fae5e;
+    --hare: #d97b2f;
+    --danger: #d95f4b;
+    --font-ui: system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-readout: ui-monospace, 'SF Mono', Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--canvas); color: var(--ink); font-family: var(--font-ui); }
+  #game, #game canvas { position: fixed; inset: 0; display: block; }
+  #hud { position: fixed; inset: 0; pointer-events: none; }
+  .hidden { display: none !important; }
+
+  #crosshair { position: fixed; left: 50%; top: 50%; width: 0; height: 0; --gap: 8px; }
+  #crosshair i { position: absolute; background: var(--ink); opacity: .9; }
+  #crosshair i:nth-child(1) { left: -1px; top: calc(-1 * var(--gap) - 8px); width: 2px; height: 8px; }
+  #crosshair i:nth-child(2) { left: -1px; top: var(--gap); width: 2px; height: 8px; }
+  #crosshair i:nth-child(3) { top: -1px; left: calc(-1 * var(--gap) - 8px); height: 2px; width: 8px; }
+  #crosshair i:nth-child(4) { top: -1px; left: var(--gap); height: 2px; width: 8px; }
+  #crosshair::after { content: ''; position: absolute; left: -1px; top: -1px; width: 2px; height: 2px; background: var(--ink); }
+
+  #hitmarker { position: fixed; left: 50%; top: 50%; width: 30px; height: 30px; transform: translate(-50%, -50%) rotate(45deg); opacity: 0; }
+  #hitmarker.on { opacity: 1; }
+  #hitmarker i { position: absolute; background: var(--ink); }
+  #hitmarker.kill i { background: var(--danger); }
+  #hitmarker i:nth-child(1) { left: 14px; top: 0; width: 2px; height: 9px; }
+  #hitmarker i:nth-child(2) { left: 14px; bottom: 0; width: 2px; height: 9px; }
+  #hitmarker i:nth-child(3) { top: 14px; left: 0; height: 2px; width: 9px; }
+  #hitmarker i:nth-child(4) { top: 14px; right: 0; height: 2px; width: 9px; }
+
+  #topbar { position: fixed; top: 18px; left: 50%; transform: translateX(-50%); text-align: center; }
+  #timer { font-family: var(--font-readout); font-size: 30px; line-height: 1; }
+  #timer.danger { color: var(--danger); }
+  #pod-label { margin-top: 6px; font-family: var(--font-readout); font-size: 12px; letter-spacing: .1em; color: var(--accent); text-shadow: 0 1px 2px rgba(0,0,0,.7); }
+  #round-label { margin-top: 4px; font-family: var(--font-readout); font-size: 12px; letter-spacing: .14em; color: var(--muted); }
+  #score-line { margin-top: 6px; font-family: var(--font-readout); font-size: 15px; }
+  #score-line .kura { color: var(--shell); }
+  #score-line .kelinci { color: var(--hare); }
+
+  #minimap { position: fixed; top: 18px; left: 18px; width: 168px; height: 122px; border: 1px solid var(--hairline); border-radius: 4px; background: rgba(20, 26, 22, .85); }
+
+  #feed { position: fixed; top: 18px; right: 18px; width: 300px; text-align: right; font-size: 13px; line-height: 1.5; }
+  #feed .feed-line { margin-bottom: 4px; text-shadow: 0 1px 2px rgba(0,0,0,.7); }
+  #feed .kura { color: var(--shell); }
+  #feed .kelinci { color: var(--hare); }
+
+  #health { position: fixed; left: 32px; bottom: 24px; width: 220px; }
+  #health-bar { height: 10px; border: 1px solid var(--hairline); border-radius: 5px; overflow: hidden; background: rgba(0,0,0,.45); }
+  #health-fill { height: 100%; width: 100%; background: var(--shell); }
+  #health-row { display: flex; justify-content: space-between; margin-top: 6px; font-family: var(--font-readout); font-size: 14px; }
+  #money { color: var(--accent); }
+  #shield-chip { margin-top: 6px; font-family: var(--font-readout); font-size: 12px; letter-spacing: .1em; color: var(--shell); border: 1px solid var(--shell); border-radius: 4px; padding: 3px 8px; display: inline-block; background: rgba(111, 174, 94, .12); }
+
+  #ammo { position: fixed; right: 32px; bottom: 24px; text-align: right; }
+  #weapon-name { font-size: 13px; letter-spacing: .1em; color: var(--muted); text-transform: uppercase; }
+  #ammo-mag { font-family: var(--font-readout); font-size: 56px; line-height: 1; }
+  #ammo-reserve { font-family: var(--font-readout); font-size: 16px; color: var(--muted); }
+  #ammo.empty #ammo-mag { color: var(--accent); }
+
+  #banner { position: fixed; top: 22%; left: 50%; transform: translateX(-50%); text-align: center; text-shadow: 0 2px 8px rgba(0,0,0,.8); }
+  #banner-title { font-size: 34px; font-weight: 600; letter-spacing: -.01em; }
+  #banner-sub { margin-top: 6px; font-size: 15px; color: var(--ink); opacity: .9; }
+
+  #plant-wrap { position: fixed; left: 50%; bottom: 22%; transform: translateX(-50%); width: 280px; text-align: center; }
+  #plant-label { font-family: var(--font-readout); font-size: 12px; letter-spacing: .12em; margin-bottom: 6px; }
+  #plant-bar { height: 8px; border: 1px solid var(--hairline); border-radius: 4px; overflow: hidden; background: rgba(0,0,0,.5); }
+  #plant-fill { height: 100%; width: 0%; background: var(--accent); }
+
+  #buy { position: fixed; left: 24px; top: 50%; transform: translateY(-50%); width: 300px; padding: 18px; background: var(--surface); border: 1px solid var(--hairline); border-radius: 6px; pointer-events: auto; }
+  #buy h2 { margin: 0 0 4px; font-size: 18px; }
+  #buy .buy-sub { margin: 0 0 12px; font-size: 13px; color: var(--muted); }
+  #buy-money { font-family: var(--font-readout); color: var(--accent); }
+  .buy-row { display: flex; justify-content: space-between; gap: 8px; padding: 9px 10px; margin: 6px 0; border: 1px solid var(--hairline); border-radius: 4px; cursor: pointer; font-size: 14px; }
+  .buy-row:hover { border-color: var(--accent); }
+  .buy-row.poor { opacity: .45; }
+  .buy-row kbd { font-family: var(--font-readout); font-size: 12px; color: var(--muted); }
+  .buy-row .price { font-family: var(--font-readout); color: var(--accent); }
+
+  .overlay { position: fixed; inset: 0; display: grid; place-items: center; padding: 24px; background: rgba(29, 43, 51, .86); }
+  .overlay[hidden] { display: none; }
+  .panel { width: min(480px, 100%); padding: 32px; background: #202a26; border: 1px solid var(--hairline); border-radius: 6px; }
+  .panel h1 { margin: 0 0 8px; font-size: 34px; line-height: 1.15; font-weight: 600; letter-spacing: -.02em; }
+  .panel p { margin: 0 0 24px; font-size: 15px; line-height: 1.55; color: var(--muted); }
+  #play { font: inherit; font-weight: 600; padding: 12px 18px; border: 1px solid var(--accent); border-radius: 6px; background: var(--accent); color: #1d2b33; cursor: pointer; }
+  #play:hover { background: var(--ink); border-color: var(--ink); }
+  .keys { margin: 24px 0 0; padding: 0; list-style: none; display: grid; gap: 8px; font-size: 13px; color: var(--muted); }
+  .keys li { display: flex; align-items: center; gap: 6px; }
+  .keys kbd { min-width: 24px; padding: 2px 6px; border: 1px solid var(--hairline); border-radius: 4px; font-family: var(--font-readout); font-size: 12px; color: var(--ink); text-align: center; }
+</style>
+</head>
+<body>
+<div id="game"></div>
+
+<div id="hud" aria-hidden="true">
+  <div id="crosshair"><i></i><i></i><i></i><i></i></div>
+  <div id="hitmarker"><i></i><i></i><i></i><i></i></div>
+  <div id="topbar">
+    <div id="timer">1:40</div>
+    <div id="pod-label" class="hidden"></div>
+    <div id="round-label">RONDE 1</div>
+    <div id="score-line"><span class="kura">KURA <b id="score-kura">0</b></span> — <span class="kelinci"><b id="score-kelinci">0</b> KELINCI</span></div>
+  </div>
+  <canvas id="minimap" width="168" height="122"></canvas>
+  <div id="feed"></div>
+  <div id="health">
+    <div id="health-bar"><div id="health-fill"></div></div>
+    <div id="health-row"><span>❤ <span id="health-num">100</span></span><span id="money">$800</span></div>
+    <div id="shield-chip" class="hidden">🛡 PERISAI AKTIF — 1 TEMBAKAN DITAHAN</div>
+  </div>
+  <div id="ammo">
+    <div id="weapon-name">Kura-9</div>
+    <span id="ammo-mag">12</span><span id="ammo-reserve">/ 48</span>
+  </div>
+  <div id="banner" class="hidden"><div id="banner-title"></div><div id="banner-sub"></div></div>
+  <div id="plant-wrap" class="hidden"><div id="plant-label"></div><div id="plant-bar"><div id="plant-fill"></div></div></div>
+  <div id="buy" class="hidden">
+    <h2>Toko Tempurung</h2>
+    <p class="buy-sub">Uangmu: <span id="buy-money">$800</span> · klik atau tekan 1–4 · B untuk sembunyikan</p>
+    <div class="buy-row" data-buy="tempurung" data-price="1200"><span><kbd>1</kbd> Tempurung AR</span><span class="price">$1200</span></div>
+    <div class="buy-row" data-buy="kilap" data-price="900"><span><kbd>2</kbd> Kilap SMG</span><span class="price">$900</span></div>
+    <div class="buy-row" data-buy="teropong" data-price="2200"><span><kbd>3</kbd> Teropong DMR</span><span class="price">$2200</span></div>
+    <div class="buy-row" data-buy="granat" data-price="300"><span><kbd>4</kbd> Granat Daun</span><span class="price">$300</span></div>
+  </div>
+</div>
+
+<div id="overlay" class="overlay">
+  <section class="panel" role="dialog" aria-modal="true" aria-labelledby="overlay-title">
+    <h1 id="overlay-title">KURA OPS</h1>
+    <p id="overlay-copy">Operasi Tempurung: kamu kura-kura, mereka kelinci. Tanam Benih di Site A (Kebun) atau B (Kolam), atau habisi semua Kelinci. Pelan-pelan asal selamat — yang berhenti membidik yang menang.</p>
+    <button id="play" type="button">Mulai Misi</button>
+    <ul class="keys">
+      <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Bergerak</li>
+      <li><kbd>Mouse</kbd> Membidik</li>
+      <li><kbd>Klik</kbd> Tembak</li>
+      <li><kbd>R</kbd> Isi ulang &nbsp; <kbd>G</kbd> Lempar granat</li>
+      <li><kbd>E</kbd> Tanam Benih (tahan, di dalam Site) &nbsp; <kbd>Ctrl</kbd> Jongkok</li>
+      <li><kbd>1</kbd>–<kbd>4</kbd> Beli senjata (fase beli) &nbsp; <kbd>Spasi</kbd> Lompat</li>
+      <li><kbd>🛡</kbd> Perisai Tempurung muncul di mid tiap ronde — ambil, satu tembakan ditahan</li>
+    </ul>
+  </section>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three/three.module.min.js"
+  }
+}
+</script>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
