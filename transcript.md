@@ -1,0 +1,171 @@
+# Transcript — KURA OPS (threejs-fps-02)
+
+Build log for the make.fun bounty entry "Make the best three.js tactical FPS"
+($1,000, 10 places, opened 15 Nov 2026 04:30 WIB, deadline 17 Nov 2026 04:30
+WIB). All game source was written in this session (started after the bounty
+opened, 15 Nov 2026 ~04:57 WIB) by the agent, in Indonesian-first working
+notes; the game text itself is Indonesian. No personal data of the user
+appears in any file or in this transcript — the account is only ever named
+@sri-muryati.
+
+## What the game is
+
+**KURA OPS — Operasi Tempurung.** A round-based tactical FPS in the spirit of
+Counter-Strike, but its own map, art, sounds and names: the player is a
+tortoise special agent; the enemy team is hares — fast, but they spray wide,
+while tortoises are slow and steady and aim better. Win a round by
+eliminating the enemy team or by planting the "Benih" (seed pod) at Site A
+"Kebun" (garden) or Site B "Kolam" (pond) and letting it bloom; the defending
+bot can defuse. First to 5 round wins (max 9 rounds). Money between rounds
+buys weapons: Kura-9 pistol (free), Kilap SMG $900, Tempurung AR $1,200,
+Teropong DMR $2,200, Granat Daun $300. Kills pay $300, a round win $1,000, a
+loss $600, planting $300. Buy phase 12 s, round 100 s, pod timer 35 s, plant
+3 s (hold E in a site), defuse 5 s. Single-player against 7 bots (3 tortoise
+allies, 4 hares) on "Taman Senja", a 44 x 32 m dusk garden courtyard with a
+fountain at mid, lanes, crates and hedges, amber site beacons, stars and a
+moon. HUD: health, ammo, round timer, score, minimap, killfeed, buy menu.
+Mouse look + keyboard movement, first-person view, crouch, jump. All sounds
+are synthesized with WebAudio (no audio files). One mulberry32 stream per
+round, seeded, so rounds are deterministic from the seed.
+
+The joke the user asked for ("serius tapi fun/lucu", calm but sure, different
+from the rest): the slowest animal in the garden is the special forces
+operator, and the fast ones can't aim — until they start losing.
+
+## What changed vs threejs-fps-01 (real gameplay changes, not a reskin)
+
+1. **Perisai Tempurung (shield pickup).** One shield spawns at mid
+   ([0, 4.5], just south of the fountain, on the Kura push route) every
+   round. Whoever walks over it — player or bot — blocks the next hit
+   entirely, once (grenades included: `damageAgent` is the single funnel for
+   all damage). Pickup during buy or live; the holder's death loses the
+   shield for the round in v1. Green shell dome + amber ring + point light
+   in the world, feed line on pickup, "PERISAI PECAH!" banner + break sound
+   when it absorbs a hit.
+2. **Hare difficulty ramp.** `hareBoost` 0..1, computed each round:
+   +0.15 per round played, +0.25 per round Kura leads, clamped to 1. Hares
+   react up to 35% faster (0.25–0.55 s → 0.16–0.36 s at full boost), hold
+   bursts one round longer, and spray x1.7 → x1.1. Kura allies never get
+   the boost. A feed line warns when the boost passes 0.5.
+3. **HUD polish.** Shield chip under the health bar while the player holds
+   the Perisai; planted-pod label under the timer while the Benih ticks;
+   minimap draws the shield pickup (green ring at mid) and the planted pod
+   (solid amber dot).
+4. **Deterministic captures kept.** `?shot=lobby|fight|plant|win&seed=1`
+   still produces the four screenshots; the fight capture now shows the
+   shield chip on (player grabbed the Perisai on the way through mid).
+
+## Files written in this session
+
+- `game/src/game.js` — rewritten: shield mesh/state/pickup/block, hareBoost
+  computation + use in `botShoot`, `hud.setPod`/`setShield` wiring, minimap
+  extras, fight capture with shield held.
+- `game/src/bots.js` — rewritten: `shield` field (create/reset), reaction
+  ramp via `ctx.hareBoost`, longer bursts at full boost.
+- `game/src/hud.js` — rewritten: `setShield`, `setPod`, minimap shield/pod
+  dots.
+- `game/index.html` — rewritten: `#shield-chip` + `#pod-label` elements and
+  CSS, shield line in the menu keys list.
+- `main.ts` — rewritten: entrypoint for the -02 bounty (same kit
+  `buildDossier` call, same scorer caps).
+- `game/src/map.js` — `SHIELD_SPAWN = [0, 4.5]` added.
+- `game/src/audio.js` — `shield()` pickup chime + `shieldBreak()` thunk added.
+- `game/src/main.js` — `__dbg` gains `shield`, `shieldAvailable`, `hareBoost`.
+
+## Revisions in a separate pass (thinking_revised)
+
+After the first build + verification, `main.ts` and `game.js` were revised
+again, each in its own later pass, and re-verified:
+
+- `game.js`: the fight capture's returning hare now shoots at the ally
+  holding mid instead of the player — before, its shot landed and the
+  Perisai broke before the capture, hiding the shield chip the still is
+  meant to show. Plus a new feature: a bot's plant/defuse progress now
+  shows on the plant bar (`MOMO MENANAM BENIH — SITE A 50%` was observed
+  live), so the player sees the pod race instead of only hearing about it
+  afterwards. The player's own bar always wins over a bot's.
+- `bots.js`: when the hares are ramped up (`hareBoost >= 0.5`), the fourth
+  hare Kabur stops holding Site B and pushes mid instead, contesting the
+  shield — one fewer site defender, the trade a losing team makes to come
+  back. Roles now reset every round in `assignRoundRoles`.
+- `main.ts`: post-build verification added — the dossier is read back and
+  parsed, screenshots must exist and stay under 256 KiB, game/ must stay
+  under 993 files / 48 MiB, and a one-line bundle summary is printed
+  (`KURA OPS -02 bundle OK: dossier 375880 bytes, 4 screenshot(s) 198696
+  bytes, game/ 16 files 2241056 bytes`).
+- `README.md`, `LICENSE` (MIT, first line `SPDX-License-Identifier: MIT`),
+  `shots.json` (4 captures, `&seed=1`), `.makefun/owner.json` (one line,
+  agent wallet).
+
+Copied unchanged, not authored: `vendor/makefun-threejs.ts` (from the kit),
+`game/vendor/three/three.module.min.js` and `three.core.min.js` (three.js
+0.187.0 from npm, byte-for-byte; sha256-verified against the -01 copy),
+`game/src/rng.js`, `palette.js`, `weapons.js`, `combat.js`, `input.js`,
+`serve.ts`.
+
+## How it was verified
+
+- All 12 game modules pass `node --check`. `main.ts` passes `node --check`
+  (serve.ts is TS and only runs under Node's type stripping, as in -01).
+- three.js verified byte-for-byte against the -01 copy (sha256
+  `three.module.min.js` ef510bae…, `three.core.min.js` 613e370f…).
+- Headless Chrome 157 (SwiftShader WebGL2) via CDP, served as `file://`
+  with `--allow-file-access-from-files`. This Chrome build refuses to start
+  without its WebGL domain policy; it was launched with
+  `--hatch-webgl-allowed-domains-file=/var/lib/hatch-browser/rootfs-base/usr/share/hatch/chromium/webgl-allowed-domains.txt`
+  plus the matching `--hatch-webgl-allowed-domains-sha256`.
+- Four real screenshots rendered from the game's own code
+  (`?shot=lobby|fight|plant|win&seed=1`, 1280x663 JPEG q85):
+  lobby — buy phase, round 1, Tempurung AR 25/100, $800, 7 bots alive,
+  shield dome + amber ring visible at mid, green shield ring on the minimap;
+  fight — live, round 2, score 1–1, kill confirmed (kills=1, money
+  $1,100 = +$300), ammo 22/100, HP 100, killfeed "Kamu ▸ Lari · Tempurung
+  AR", shield chip "PERISAI AKTIF — 1 TEMBAKAN DITAHAN" visible;
+  plant — live, round 3, score 2–1, "MENANAM BENIH — SITE A" bar at 60%,
+  hare + ally in frame; win — round end, round 3, score 3–1, planted pod
+  glowing at Site A, fallen hare, banner "RONDE DIMENANGKAN", pod label
+  "BENIH DITANAM — SITE A" under the red 0:35 timer, amber pod dot on the
+  minimap. Zero console errors, zero failed requests in every capture.
+- Determinism: every capture was taken twice in a row; all four sha256
+  hashes were identical across the two runs (lobby 6febb5a9…, fight
+  5d2971a0…, plant 9d348d51…, win 4043ab7d…).
+- Live play-test (no `?shot`), 70 s headless session with real CDP mouse/key
+  input, pointer lock engaged: menu → buy (grenade bought with key 4,
+  $800 → $500) → live, player walking north and firing the Kura-9 (ammo
+  12 → 6), bots engaging only once live, player killed in the open
+  (HP 100 → 0), ally carrier Momo planting the Benih at Site A after the
+  player died — the new bot plant bar was observed live at 50%
+  ("MOMO MENANAM BENIH — SITE A 50%"). Zero console errors, zero failed
+  requests. A bot picked up the shield during the buy phase (mid-route
+  ally walking through (0, 4.5)), confirming opportunistic bot pickup.
+- `main.ts` run with `MAKEFUN_OUTPUT_DIR=/tmp/kura02-out3`: dossier.json
+  built and verified by the new post-build check — dossier 375,880 bytes
+  (cap 1.5 MiB), dossier text ~110 KB (cap 163,840 bytes), 4 screenshots
+  198,696 bytes total (each under 256 KiB, 1280x663: long side ≤ 1280,
+  short side ≥ 480), game/ 16 files 2,241,056 bytes (caps 993 files /
+  48 MiB), index.html 10,402 bytes (cap 1 MiB).
+- No personal data in any file: grep for the user's name, email, phone
+  finds only the account handle @sri-muryati in this transcript, which the
+  task explicitly allows.
+
+## Bugs found and fixed in this session
+
+- `player.js` was not copied from the -01 tree in the first setup pass, so
+  the game module graph 404'd on `./player.js` and no canvas ever mounted
+  (`__dbg` undefined, all four captures blank and identical). Found via CDP
+  `Network.loadingFailed: ERR_FILE_NOT_FOUND` on request 16882.10; fixed by
+  copying `player.js` unchanged, then all four captures went green.
+- Fight capture v1: the returning hare's scripted shot hit the player, so
+  the Perisai broke before the still and the shield chip was hidden. Fixed
+  in the revision pass: the hare shoots at the mid ally instead, and the
+  capture now shows `shield: true` in `__dbg` and the chip in the frame.
+- Chrome would not start headless in this VM ("Hatch WebGL domain policy is
+  required for browser startup") until launched with the WebGL domain
+  policy file + SHA-256 switches above (the file contains the
+  `hatch-webgl-all-origins-v1` sentinel).
+
+## Not done
+
+- No GitHub repo created, no submission made (per the task: report when the
+  files are ready). The bounty opened 15 Nov 2026 04:30 WIB and ends 17 Nov
+  2026 04:30 WIB.
